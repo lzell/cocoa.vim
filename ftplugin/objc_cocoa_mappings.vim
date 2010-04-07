@@ -1,12 +1,24 @@
 " File: objc_cocoa_mappings.vim
 " Author: Michael Sanders (msanders42 [at] gmail [dot] com)
 " Description: Sets up mappings for cocoa.vim.
-" Last Updated: September 08, 2009
+" Last Updated: December 26, 2009
 
 if exists('b:cocoa_proj') || &cp || version < 700
 	finish
 endif
 let b:cocoa_proj = fnameescape(globpath(expand('<afile>:p:h'), '*.xcodeproj'))
+" Search a few levels up to see if we can find the project file
+if empty(b:cocoa_proj)
+	let b:cocoa_proj  = fnameescape(globpath(expand('<afile>:p:h:h'), '*.xcodeproj'))
+
+	if empty(b:cocoa_proj)
+		let b:cocoa_proj = fnameescape(globpath(expand('<afile>:p:h:h:h'), '*.xcodeproj'))
+		if empty(b:cocoa_proj)
+			let b:cocoa_proj = fnameescape(globpath(expand('<afile>:p:h:h:h:h'), '*.xcodeproj'))
+		endif
+	endif
+endif
+let g:x = b:cocoa_proj
 
 com! -buffer ListMethods call objc#method_list#Activate(1)
 com! -buffer -nargs=? -complete=customlist,objc#method_builder#Completion BuildMethods call objc#method_builder#Build('<args>')
@@ -29,31 +41,34 @@ nn <buffer> <silent> <d-0> :call system('open -a Xcode '.b:cocoa_proj)<cr>
 nn <buffer> <silent> <d-2> :<c-u>ListMethods<cr>
 nm <buffer> <silent> <d-cr> <d-r>
 ino <buffer> <silent> <f5> <c-x><c-o>
+nn <buffer> <d-/> I// <ESC>
+nn <buffer> <d-[> <<
+nn <buffer> <d-]> >>
 
 if exists('*s:AlternateFile') | finish | endif
 
 " Switch from header file to implementation file (and vice versa).
 fun s:AlternateFile()
 	let path = expand('%:p:r').'.'
-	if expand('%:e') == 'h'
-		if filereadable(path.'m')
-			exe 'e'.fnameescape(path.'m')
-			return
-		elseif filereadable(path.'c')
-			exe 'e'.fnameescape(path.'c')
-			return
-		endif
-	else
-		if filereadable(path.'h')
-			exe 'e'.fnameescape(path.'h')
-			return
-		endif
+	let extensions = expand('%:e') == 'h' ? ['m', 'c', 'cpp'] : ['h']
+	if !s:ReadableExtensionIn(path, extensions)
+		  echoh ErrorMsg | echo 'Alternate file not readable.' | echoh None
 	endif
-	echoh ErrorMsg | echo 'Alternate file not readable.' | echoh None
 endf
 
-" Opens Xcode and runs Applescript commands, splitting them onto newlines
-" if needed.
+" Returns true and switches to file if file with extension in any of
+" |extensions| is readable, or returns false if not.
+fun s:ReadableExtensionIn(path, extensions)
+	for ext in a:extensions
+		if filereadable(a:path.ext)
+			exe 'e'.fnameescape(a:path.ext)
+			return 1
+		endif
+	endfor
+	return 0
+endf
+
+" Opens Xcode and runs Applescript command.
 fun s:XcodeRun(command)
 	call system("open -a Xcode ".b:cocoa_proj." && osascript -e 'tell app "
 				\ .'"Xcode" to '.a:command."' &")
